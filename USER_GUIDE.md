@@ -116,9 +116,26 @@ ps aux | grep usb_monitor
 pkill -f usb_monitor.py
 ```
 
+
 ### 开机自启（systemd）
 
-创建服务文件 `/etc/systemd/system/usb-monitor.service`：
+**1. 部署脚本到系统目录**
+
+```bash
+sudo mkdir -p /opt/weact-monitor
+sudo cp /home/你的用户名/usb_monitor.py /opt/weact-monitor/
+sudo chmod 755 /opt/weact-monitor/usb_monitor.py
+```
+
+> 不要放在 `/home/` 下，systemd 进程可能无权访问用户目录。
+
+**2. 创建服务文件**
+
+```bash
+sudo nano /etc/systemd/system/weact-monitor.service
+```
+
+写入：
 
 ```ini
 [Unit]
@@ -127,20 +144,41 @@ After=multi-user.target
 
 [Service]
 Type=simple
-User=你的用户名
-ExecStart=/usr/bin/python3 /home/你的用户名/usb_monitor.py -b 60 -i 2.0
+ExecStartPre=/bin/sleep 3
+ExecStart=/usr/bin/python3 /opt/weact-monitor/usb_monitor.py -b 60 -i 2.0
 Restart=on-failure
+RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-启用：
+> `ExecStartPre=/bin/sleep 3` 等待 USB 设备就绪，`RestartSec=10` 失败后 10 秒重试。
+
+**3. 启用并启动**
+
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now usb-monitor
-sudo systemctl status usb-monitor   # 查看状态
+sudo systemctl enable --now weact-monitor
+sudo systemctl status weact-monitor
 ```
+
+**4. 常用管理命令**
+
+```bash
+sudo systemctl status weact-monitor   # 查看状态
+sudo systemctl restart weact-monitor  # 重启
+sudo systemctl stop weact-monitor     # 停止
+sudo journalctl -u weact-monitor -f   # 实时日志
+```
+
+**5. 常见问题**
+
+| 现象 | 原因 | 解决 |
+|------|------|------|
+| `Permission denied` | 脚本在 `/home/` 下 | 移到 `/opt/weact-monitor/` |
+| 服务启动但屏幕不亮 | USB 未就绪 | 加大 `ExecStartPre` 的 sleep 秒数 |
+| `could not open port` | 串口被占用或无权限 | `sudo usermod -aG dialout root` |
 
 ---
 
